@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JobDetails</title>
+    <!-- import Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.12.0/dist/axios.min.js"></script>
+
+    <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
+
+    <!-- import stylesheet -->
+    <link rel="stylesheet" href="http://unpkg.com/iview/dist/styles/iview.css">
+    <!-- import iView -->
+    <script src="http://unpkg.com/iview/dist/iview.min.js"></script>
+
+    <!-- websocket -->
+    <script src="https://cdn.bootcss.com/jquery/2.1.4/jquery.js"></script>
+    <script src="https://cdn.bootcss.com/sockjs-client/1.1.4/sockjs.min.js"></script>
+    <script src="https://cdn.bootcss.com/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+<div id="app-jobDetails">
+    <!--jobDetails 查询 -->
+    <i-Form ref="formSearchJobDetails" :model="jobDetails.formSearch.model" :label-width="60" inline>
+        <Form-Item label="调度器" prop="schedName">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.schedName" placeholder="schedName">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="任务名" prop="jobName">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.jobName" placeholder="jobName">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="任务组" prop="jobGroup">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.jobGroup" placeholder="jobGroup">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="描述" prop="description">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.description" placeholder="description">
+            </i-Input>
+        </Form-Item>
+<!--        <Form-Item label="任务类名" prop="jobClassName">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.jobClassName" placeholder="jobClassName">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="触发器" prop="triggerName">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.triggerName" placeholder="triggerName">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="触发器组" prop="triggerGroup">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.triggerGroup" placeholder="triggerGroup">
+            </i-Input>
+        </Form-Item>-->
+        <Form-Item label="表达式" prop="cronExpression">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.cronExpression" placeholder="cronExpression">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="时区" prop="timeZoneId">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.timeZoneId" placeholder="timeZoneId">
+            </i-Input>
+        </Form-Item>
+        <Form-Item label="状态" prop="triggerState">
+            <i-Input type="text" v-model="jobDetails.formSearch.model.triggerState" placeholder="triggerState">
+            </i-Input>
+        </Form-Item>
+        <Form-Item>
+            <i-Button type="primary" @click="handleSearchSubmit">查询</i-Button>
+            <i-Button type="primary" @click="handleResetFields('formSearchJobDetails')">重置</i-Button>
+        </Form-Item>
+    </i-Form>
+
+    <i-Button type="primary" @click="modalShowJobDetailsAdd">添加</i-Button>
+    <i-Button type="primary" @click="modalShowLog">日志</i-Button>
+    <i-Button type="primary" @click="batchDelete">删除</i-Button>
+
+    <!--jobDetails 列表 -->
+    <i-table size="small" :columns="jobDetails.columns" :data="jobDetails.data" @on-selection-change="onSelectionChange"></i-table>
+
+    <!-- 分页操作-->
+    <div style="margin: 10px;overflow: hidden">
+        <div style="float: right;">
+            <Page show-total show-elevator show-sizer :total="jobDetails.total" :current="jobDetails.pageNum" :page-size="jobDetails.pagSize" @on-change="jobDetailsChangePage" @on-page-size-change="jobDetailsChangePageSize"></Page>
+        </div>
+    </div>
+
+    <!-- 添加模态框-->
+    <Modal
+            v-model="jobDetails.form.isLogModalShow"
+            title="定时实时日志"
+            draggable
+            scrollable
+            footer-hide
+            :width="800">
+
+         <Scroll :height="300" style=" background: #d2e4d7;">
+<!--             StringBuilder sb = new StringBuilder();
+             sb.append(format.format(new Date(log.getTimeStamp()))).append(" ");
+             sb.append(log.getLevel().levelStr).append("-&#45;&#45;");
+             sb.append("[").append(log.getThreadName()).append("] ");
+             sb.append(log.getLoggerName()).append(" - ");
+             sb.append(log.getFormattedMessage());-->
+             <div v-for="item in jobLog.logList" >
+                 <p>{{item.timeStamp}} {{item.level}} [{{item.threadName}}] {{item.loggerName}}-{{item.formattedMessage}}</p>
+             </div>
+         </Scroll>
+
+    </Modal>
+    <!-- 添加模态框-->
+    <Modal
+            v-model="jobDetails.form.isAddModalShow"
+            title="Add JobDetails"
+            @on-ok="jobDetailsAdd"
+            @on-cancel="handleResetFields('formAddJobDetails')">
+
+        <i-Form ref="formAddJobDetails" :model="jobDetails.form.model" :label-width="80">
+<!--            <Form-Item label="调度器" prop="schedName">
+                <i-Input v-model="jobDetails.form.model.schedName" placeholder="Enter schedName..."></i-Input>
+            </Form-Item>-->
+            <Form-Item label="任务名" prop="jobName">
+                <i-Input v-model="jobDetails.form.model.jobName" placeholder="Enter jobName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="任务组" prop="jobGroup">
+                <i-Input v-model="jobDetails.form.model.jobGroup" placeholder="Enter jobGroup..."></i-Input>
+            </Form-Item>
+            <Form-Item label="描述" prop="description">
+                <i-Input v-model="jobDetails.form.model.description" placeholder="Enter description..."></i-Input>
+            </Form-Item>
+           <!-- <Form-Item label="任务类名" prop="jobClassName">
+                <i-Input v-model="jobDetails.form.model.jobClassName" placeholder="Enter jobClassName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="触发器" prop="triggerName">
+                <i-Input v-model="jobDetails.form.model.triggerName" placeholder="Enter triggerName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="触发器组" prop="triggerGroup">
+                <i-Input v-model="jobDetails.form.model.triggerGroup" placeholder="Enter triggerGroup..."></i-Input>
+            </Form-Item>-->
+            <Form-Item label="表达式" prop="cronExpression">
+                <i-Input v-model="jobDetails.form.model.cronExpression" placeholder="Enter cronExpression..."></i-Input>
+            </Form-Item>
+<!--            <Form-Item label="时区" prop="timeZoneId">
+                <i-Input v-model="jobDetails.form.model.timeZoneId" placeholder="Enter timeZoneId..."></i-Input>
+            </Form-Item>
+            <Form-Item label="状态" prop="triggerState">
+                <i-Input v-model="jobDetails.form.model.triggerState" placeholder="Enter triggerState..."></i-Input>
+            </Form-Item>-->
+        </i-Form>
+    </Modal>
+
+    <Modal
+            v-model="jobDetails.form.isEditModalShow"
+            title="Edit JobDetails"
+            @on-ok="jobDetailsEdit"
+            @on-cancel="handleResetFields('formEditJobDetails')">
+        <i-Form ref="formEditJobDetails" :model="jobDetails.form.model" :label-width="80">
+            <Form-Item label="调度器">
+                <i-Input v-model="jobDetails.form.model.schedName" placeholder="Enter schedName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="任务名">
+                <i-Input v-model="jobDetails.form.model.jobName" placeholder="Enter jobName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="任务组">
+                <i-Input v-model="jobDetails.form.model.jobGroup" placeholder="Enter jobGroup..."></i-Input>
+            </Form-Item>
+            <Form-Item label="描述">
+                <i-Input v-model="jobDetails.form.model.description" placeholder="Enter description..."></i-Input>
+            </Form-Item>
+            <Form-Item label="任务类名">
+                <i-Input v-model="jobDetails.form.model.jobClassName" placeholder="Enter jobClassName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="触发器">
+                <i-Input v-model="jobDetails.form.model.triggerName" placeholder="Enter triggerName..."></i-Input>
+            </Form-Item>
+            <Form-Item label="触发器组">
+                <i-Input v-model="jobDetails.form.model.triggerGroup" placeholder="Enter triggerGroup..."></i-Input>
+            </Form-Item>
+            <Form-Item label="表达式">
+                <i-Input v-model="jobDetails.form.model.cronExpression" placeholder="Enter cronExpression..."></i-Input>
+            </Form-Item>
+            <Form-Item label="时区">
+                <i-Input v-model="jobDetails.form.model.timeZoneId" placeholder="Enter timeZoneId..."></i-Input>
+            </Form-Item>
+            <Form-Item label="状态">
+                <i-Input v-model="jobDetails.form.model.triggerState" placeholder="Enter triggerState..."></i-Input>
+            </Form-Item>
+        </i-Form>
+    </Modal>
+</div>
+
+</body>
+<script>
+    //全局变量
+    Vue.prototype.baseUrl = "http://localhost:7070/";
+    //封装axios
+    const instance = axios.create({
+        baseURL: Vue.prototype.baseUrl,
+        timeout: 1000000,
+//        withCredentials: true,//跨域
+        headers: {"Accept-Language" : "en"}
+    });
+    // 添加响应拦截器
+    instance.interceptors.response.use(function (response) {
+        // 对响应数据做点什么
+        return response;
+    }, function (error) {
+        // 对响应错误做点什么
+        if(error.status ==403 ) {
+            window.location.href="./vue-login.html";
+        }
+        //return Promise.reject(error);
+    });
+    Vue.prototype.axios = instance;
+
+    var jobDetailsVM = new Vue({
+        el: '#app-jobDetails',
+        data: {
+            jobDetails:{
+                // 列表数据
+                data:[],
+                pageNum:1,
+                pageSize:10,
+                total:10,
+                columns:[
+                    // 行勾选框
+                    {
+                        type: 'selection',
+                        width: 60,
+                        align: 'center'
+                    },
+                    {title:'调度器', key:'schedName'},
+                    {title:'任务名', key:'jobName'},
+                    {title:'任务组', key:'jobGroup'},
+                    {title:'描述', key:'description'},
+//                    {title:'任务类名', key:'jobClassName'},
+//                    {title:'触发器', key:'triggerName'},
+//                    {title:'触发器组', key:'triggerGroup'},
+                    {title:'表达式', key:'cronExpression'},
+                    {title:'时区', key:'timeZoneId'},
+                    {title:'状态', key:'triggerState'},
+                    {
+                        title: 'Action',
+                        key: 'action',
+                        width: 250,
+                        align: 'center',
+                        render: (h, params) => {
+                            return h('div', [
+                                h('Button', {
+                                    props: {type: 'primary', size: 'small'},
+                                    style: {marginRight: '5px'},
+                                    on: {
+                                        click: () => {
+                                            jobDetailsVM.jobDetailsPause(params.index);
+                                        }
+                                    }
+                                }, '暂停'),
+                                h('Button', {
+                                    props: {type: 'primary', size: 'small'},
+                                    style: {marginRight: '5px'},
+                                    on: {
+                                        click: () => {
+                                            jobDetailsVM.jobDetailsResume(params.index);
+                                        }
+                                    }
+                                }, '恢复'),
+                                h('Button', {
+                                    props: {type: 'success', size: 'small'},
+                                    style: {marginRight: '5px'},
+                                    on: {
+                                        click: () => {
+                                            jobDetailsVM.modalShowJobDetailsEdit(params.index);
+                                        }
+                                    }
+                                }, '修改'),
+                                h('Button', {props: {type: 'error', size: 'small'
+                                },
+                                    on: {
+                                        click: () => {
+                                            jobDetailsVM.jobDetailsRemove(params.index)
+                                        }
+                                    }
+                                }, 'Delete')
+                            ]);
+                        }
+                    }
+                ],
+                // 被选中行
+                selectedItem:[],
+                // 查询表单模型
+                formSearch:{
+                    model:{
+                        schedName: '',
+                        jobName: '',
+                        jobGroup: '',
+                        description: '',
+                        jobClassName: '',
+                        triggerName: '',
+                        triggerGroup: '',
+                        cronExpression: '',
+                        timeZoneId: '',
+                        triggerState: ''
+                    }
+                },
+                // 添加/修改表单模型
+                form:{
+                    isEditModalShow:false,
+                    isAddModalShow:false,
+                    isLogModalShow:false,
+                    model:{
+                        schedName: '',
+                        jobName: '',
+                        jobGroup: '',
+                        description: '',
+                        jobClassName: '',
+                        triggerName: '',
+                        triggerGroup: '',
+                        cronExpression: '',
+                        timeZoneId: '',
+                        triggerState: ''
+                    }
+                }
+            },
+            jobLog:{
+                logList:[],
+                max:200
+            },
+            stompClient:null
+        },
+        created: function () {
+            this.loadJobDetailss(this.jobDetails.pageNum, this.jobDetails.pageSize);
+            this.openSocket();
+        },
+        methods: {
+            // 重置表单
+            handleResetFields(name) {
+                var vm = this;
+                this.$refs[name].resetFields();
+            },
+            // 提交查询
+            handleSearchSubmit() {
+                this.loadJobDetailss(0, this.jobDetails.pageSize);
+            },
+            //分页加载数据
+            loadJobDetailss: function (pageNum, pageSize) {
+                var vm = this;
+                var params = { pageNum: pageNum, pageSize: pageSize};
+                Object.assign(params, this.jobDetails.formSearch.model);
+                this.axios.get('qrtzJobDetails/listByPage',{
+                    params:params
+                }).then(function (response) {
+                    vm.jobDetails.data = response.data.data;
+                    vm.jobDetails.total = response.data.total;
+                })
+            },
+            //页码变更
+            jobDetailsChangePage:function (val) {
+                this.jobDetails.pageNum = val;
+                this.loadJobDetailss(this.jobDetails.pageNum, this.jobDetails.pageSize);
+                console.log(val);
+            },
+            //页大小变更
+            jobDetailsChangePageSize:function (val) {
+                this.jobDetails.pageSize = val;
+                this.loadJobDetailss(this.jobDetails.pageNum, this.jobDetails.pageSize);
+                console.log(val);
+            },
+            // 添加数据
+            jobDetailsAdd: function () {
+                var vm = this;
+                var model = vm.jobDetails.form.model;
+                this.axios.post('qrtzJobDetails/add',{
+                    schedName: model.schedName,
+                    jobName: model.jobName,
+                    jobGroup: model.jobGroup,
+                    description: model.description,
+                    jobClassName: model.jobClassName,
+                    triggerName: model.triggerName,
+                    triggerGroup: model.triggerGroup,
+                    cronExpression: model.cronExpression,
+                    timeZoneId: model.timeZoneId,
+                    triggerState: model.triggerState
+                }).then(function (response) {
+                    vm.$Modal.success({
+                        title: '提示',
+                        content: response.data.msg
+                    });
+                    vm.loadJobDetailss(0, vm.jobDetails.pageSize);
+                }).catch(function (error) {
+                    vm.$Modal.warning({
+                        title: '提示',
+                        content: error.data.msg
+                    });
+                })
+            },
+            // 修改数据
+            jobDetailsEdit: function () {
+                var vm = this;
+                var model = vm.jobDetails.form.model;
+                this.axios.post('qrtzJobDetails/edit',{
+                    schedName: model.schedName,
+                    jobName: model.jobName,
+                    jobGroup: model.jobGroup,
+                    description: model.description,
+                    jobClassName: model.jobClassName,
+                    triggerName: model.triggerName,
+                    triggerGroup: model.triggerGroup,
+                    cronExpression: model.cronExpression,
+                    timeZoneId: model.timeZoneId,
+                    triggerState: model.triggerState
+                }).then(function (response) {
+                    vm.$Modal.success({
+                        title: '提示',
+                        content: response.data.msg
+                    });
+                    vm.loadJobDetailss(vm.jobDetails.pageNum, vm.jobDetails.pageSize);
+                }).catch(function (error) {
+                    vm.$Modal.warning({
+                        title: '提示',
+                        content: error.data.msg
+                    });
+                })
+            },
+            // 显示详情
+            jobDetailsShow (index) {
+                var record = this.jobDetails.data[index];
+                this.$Modal.info({
+                    title: 'log Info',
+                    content: `内容省略`
+                })
+            },
+            // 任务暂停
+            jobDetailsPause (index) {
+                var vm = this;
+                var record = this.jobDetails.data[index];
+                this.axios.post('qrtzJobDetails/pause',record)
+                    .then(function (response) {
+                        if (response.data.success) {
+                            vm.$Modal.success({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                        } else {
+                            vm.$Modal.warning({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                        }
+                        vm.loadJobDetailss(vm.jobDetails.pageNum, vm.jobDetails.pageSize);
+                    });
+            },
+            // 任务恢复
+            jobDetailsResume (index) {
+                var vm = this;
+                var record = this.jobDetails.data[index];
+                this.axios.post('qrtzJobDetails/resume',record)
+                    .then(function (response) {
+                        if (response.data.success) {
+                            vm.$Modal.success({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                        } else {
+                            vm.$Modal.warning({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                        }
+                        vm.loadJobDetailss(vm.jobDetails.pageNum, vm.jobDetails.pageSize);
+                    });
+            },
+            // 删除记录
+            jobDetailsRemove (index) {
+                var vm = this;
+                var record = this.jobDetails.data[index];
+                this.jobDetails.data.splice(index, 1);
+                this.axios.post('qrtzJobDetails/delete',record)
+                    .then(function (response) {
+                        if (response.data.success) {
+                            vm.$Modal.success({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                        } else {
+                            vm.$Modal.warning({
+                                title: '提示',
+                                content: response.data.msg
+                            });
+                            vm.loadJobDetailss(vm.jobDetails.pageNum, vm.jobDetails.pageSize);
+                        }
+                })
+            },
+            // 多选数据变化,批量删除依赖
+            onSelectionChange(selection) {
+                this.jobDetails.selectedItem = selection;
+                console.log(selection);
+            },
+            // 批量删除
+            batchDelete () {
+                var vm = this;
+                var records = this.jobDetails.selectedItem;
+                this.axios.delete('qrtzJobDetails/batchDelete', {
+                    data: records
+                }).then(function (response) {
+                    if (response.data.success) {
+                        vm.$Modal.success({
+                            title: '提示',
+                            content: response.data.msg
+                        });
+                    } else {
+                        vm.$Modal.warning({
+                            title: '提示',
+                            content: response.data.msg
+                        });
+                    }
+                    vm.loadJobDetailss(vm.jobDetails.pageNum, vm.jobDetails.pageSize);
+                })
+            },
+
+            // 模态添加框显示
+            modalShowJobDetailsAdd() {
+                this.jobDetails.form.isAddModalShow = true;
+            },
+            // 模态日志框显示
+            modalShowLog() {
+                this.jobDetails.form.isLogModalShow = true;
+            },
+            // 模态编辑框显示
+            modalShowJobDetailsEdit(index) {
+                var record = this.jobDetails.data[index];
+                var model = this.jobDetails.form.model;
+                model.schedName = record.schedName;
+                model.jobName = record.jobName;
+                model.jobGroup = record.jobGroup;
+                model.description = record.description;
+                model.jobClassName = record.jobClassName;
+                model.triggerName = record.triggerName;
+                model.triggerGroup = record.triggerGroup;
+                model.cronExpression = record.cronExpression;
+                model.timeZoneId = record.timeZoneId;
+                model.triggerState = record.triggerState;
+                this.jobDetails.form.isEditModalShow = true;
+            },
+            openSocket() {
+                var vm = this;
+                if(vm.stompClient==null){
+                    var socket = new SockJS('http://localhost:7070/websocket');
+                    vm.stompClient = Stomp.over(socket);
+                    vm.stompClient.connect({}, function(frame) {
+                        vm.stompClient.subscribe('/topic/print', function(event) {
+                            vm.jobLog.logList.push(JSON.parse(event.body));
+                            if (vm.jobLog.logList.length > vm.jobLog.max) {
+                                vm.jobLog.logList.splice(0, 1);
+                            }
+//                            console.log(vm.jobLog.logList);
+                        },{});
+                    });
+                }
+            },
+            closeSocket() {
+                var vm = this;
+                if (vm.stompClient != null) {
+                    vm.stompClient.disconnect();
+                    vm.stompClient=null;
+                }
+            }
+
+        }
+    })
+
+
+
+</script>
+</html>
